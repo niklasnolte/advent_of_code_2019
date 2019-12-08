@@ -9,4 +9,6 @@ total_fuel_for x = if x == 0 then 0 else fuel_for x + (total_fuel_for $ fuel_for
 
 answer_2 = sum [ total_fuel_for x | x <- input ]
 
-main = putStrLn $ show answer_2
+main = do
+       putStrLn ("Answer for part 1: " ++ show answer_1)
+       putStrLn ("Answer for part 2: " ++ show answer_2)
