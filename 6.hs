@@ -1,5 +1,4 @@
 import qualified Input6
-import Control.Monad (sequence)
 import Data.List.Split (splitOn)
 import Data.Maybe (fromJust)
 import qualified Data.Map as Map
