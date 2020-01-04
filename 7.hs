@@ -8,7 +8,8 @@ data Computer =
     _inputs           :: [Int],
     _outputs          :: [Int],
     _current_position :: Int,
-    _sequence         :: [Int]
+    _sequence         :: [Int],
+    _done             :: Bool
   } deriving (Show)
 
 
@@ -37,7 +38,7 @@ perform_opcode_3 com = return com { _sequence = modify_sequence (seq!!(pos+1)) s
                              first_input:other_inputs = _inputs com
 
 perform_opcode_4 com modes = do { return com { _current_position=pos+2,
-                                               _outputs=v:(_outputs com) }
+                                               _outputs=[v] }
                                 } where pos = _current_position com
                                         seq = _sequence com
                                         v:[] = get_values_by_mode (pos+1) seq modes 1
@@ -78,10 +79,13 @@ iterate_program computer = do
   c <- computer
   let s = _sequence c
   let pos = _current_position c
-  if (let (op,_) = parse_opcode $ s!!pos in 99 == op) {-breaking condition-}
-  then computer
-  else do new_c <- execute_current_opcode computer
-          iterate_program $ return new_c
+  let (op,_) = parse_opcode $ s!!pos
+  case op of
+    99 -> return c { _done = True }
+    otherwise -> if (3 == op && _inputs c == [])
+                 then computer
+                 else do new_c <- execute_current_opcode computer
+                         iterate_program $ return new_c
 
 run_program :: Computer -> IO Computer
 run_program com = iterate_program $ return com
@@ -91,19 +95,44 @@ _default_seq = [3,8,1001,8,10,8,105,1,0,0,21,34,47,72,81,102,183,264,345,426,999
 _default_computer = Computer { _sequence = _default_seq,
                                _inputs = [],
                                _outputs = [],
-                               _current_position = 0 }
+                               _current_position = 0,
+                               _done = False }
 
 
-link_thrusters :: IO Computer -> Int -> IO Computer
-link_thrusters lhs phase_setting = do
-  old <- lhs
-  let output:[] = _outputs old
-  let rhs =  _default_computer { _inputs = [phase_setting, output]}
-  run_program rhs
+run_amplifier :: IO Computer -> [Int] -> IO Computer
+run_amplifier my_state inputs = do
+  s <- my_state
+  run_program s { _inputs = inputs ++ (_inputs s) }
 
+initialize_amplifier :: Int -> IO Computer
+initialize_amplifier phase_setting = do
+  run_amplifier (return _default_computer) [phase_setting]
+
+
+run_amplifier_chain :: IO [Computer] -> Int -> IO [Computer] {- (input, phase settings) -> (amplifier signal, States -}
+run_amplifier_chain states i = do
+  (first:rest) <- states
+  let inputs = _outputs $ last rest
+  new_state <- run_amplifier (return first) (if inputs == [] then [0] else inputs)
+  let new_states = return (rest ++ [new_state])
+  if (_done new_state && i `mod` 5 == 4) {- only stop at the last -}
+    then new_states
+    else run_amplifier_chain new_states (i+1)
+
+get_thruster_signal :: [Int] -> IO Int
+get_thruster_signal phase_settings = do
+  let amplifiers = sequence $ map initialize_amplifier phase_settings
+  done <- run_amplifier_chain amplifiers 0
+  return $ head $ _outputs $ last done
+
+get_answer phase_values = do
+  let all_permutations = permutations phase_values
+  all_signals <- sequence $ map get_thruster_signal all_permutations
+  return $ maximum all_signals
+  
 
 main = do
-  let _all_permutations = permutations [4,3,2,1,0]
-  let get_output x = x >>= return . head . _outputs
-  all_outputs <- sequence $ map (get_output . foldl link_thrusters (return _default_computer {_outputs = [0]})) _all_permutations
-  print $ maximum all_outputs
+  a1 <- get_answer [0..4]
+  print a1
+  a2 <- get_answer [5..9]
+  print a2
