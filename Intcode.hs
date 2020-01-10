@@ -1,9 +1,10 @@
 module Intcode where
 
+import System.IO.Unsafe (unsafePerformIO)
+
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
-relative_base = 0
 
 data Computer =
   Computer {
@@ -11,8 +12,16 @@ data Computer =
     _outputs          :: [Int],
     _current_position :: Int,
     _sequence         :: [Int],
-    _done             :: Bool
+    _done             :: Bool,
+    _relative_base    :: Int
   } deriving (Show)
+
+_default_computer = Computer { _inputs = [],
+                               _outputs = [],
+                               _current_position = 0,
+                               _sequence = [],
+                               _done = False,
+                               _relative_base = 0 }
 
 data Mode = Position | Immediate | Relative deriving (Enum, Show, Eq)
 
@@ -25,66 +34,84 @@ parse_opcode opcode = (op, modes)
 
 modify_sequence pos seq value = take pos seq ++ [value] ++ drop (pos+1) seq
 
-get_values_by_mode start seq modes n =
+get_values_by_mode com modes n =
   [ get_val v mode | (v,mode) <- zip (take n $ drop start seq) (modes ++ repeat Position) ]
-  where get_val v mode
-          | mode == Position = seq!!v
-          | mode == Immediate = v
-          | mode == Relative = seq!!(v + relative_base)
+  where start = _current_position com + 1
+        seq = _sequence com
+        get_val v mode = case mode of
+          Position -> seq!!v
+          Immediate -> v
+          Relative -> seq!!(v + _relative_base com)
 
-perform_opcode_1or2 pos seq modes op = (modify_sequence (seq!!(pos+3)) seq $ fromEnum (v1 `op` v2), pos+4)
-                                        where v1:v2:[] = get_values_by_mode (pos+1) seq modes 2
+get_position_by_mode seq pos rel mode = case mode of
+  Position -> seq!!pos
+  Relative -> seq!!pos + rel
+  otherwise -> error "immediate mode for writing parameter doesn't work"
 
-perform_opcode_1 pos seq modes = perform_opcode_1or2 pos seq modes (+)
-perform_opcode_2 pos seq modes = perform_opcode_1or2 pos seq modes (*)
+perform_opcode_1or2 com modes op = com { _sequence = modify_sequence write_at seq $ fromEnum (v1 `op` v2),
+                                         _current_position = pos+4 }
+                                   where
+                                     seq = _sequence com
+                                     pos = _current_position com
+                                     write_mode = (modes ++ repeat Position) !! 2
+                                     write_at = get_position_by_mode seq (pos+3) (_relative_base com) write_mode
+                                     v1:v2:[] = get_values_by_mode com modes 2
+
+perform_opcode_1 com modes = perform_opcode_1or2 com modes (+)
+perform_opcode_2 com modes = perform_opcode_1or2 com modes (*)
 
 perform_opcode_3 com modes = do
-  return com { _sequence = modify_sequence (seq !! (pos+1)) seq first_input,
-               _current_position = pos+2,
+  return com { _sequence = modify_sequence write_at seq first_input,
+               _current_position = instr_pos+1,
                _inputs = other_inputs }
   where seq = _sequence com
-        pos = _current_position com
-        val:[] = get_values_by_mode (pos+1) seq modes 1
+        instr_pos = _current_position com + 1
+        write_at = get_position_by_mode seq instr_pos (_relative_base com) (head modes)
         first_input:other_inputs = _inputs com
 
-perform_opcode_4 com modes = do { return com { _current_position=pos+2,
-                                               _outputs=[v] }
-                                } where pos = _current_position com
-                                        seq = _sequence com
-                                        v:[] = get_values_by_mode (pos+1) seq modes 1
+perform_opcode_4 com modes = do
+  return com { _current_position=pos+2,
+               _outputs=v:(_outputs com) }
+  where pos = _current_position com
+        seq = _sequence com
+        v:[] = get_values_by_mode com modes 1
 
 
-jump_if pos seq modes cond = (seq, if (cond do_jump) then val else pos+3)
-                             where do_jump:val:[] = get_values_by_mode (pos+1) seq modes 2
+jump_if com modes cond = com { _sequence = seq,
+                               _current_position = if (cond do_jump) then val else pos+3 }
+                         where seq = _sequence com
+                               pos = _current_position com
+                               do_jump:val:[] = get_values_by_mode com modes 2
 
-perform_opcode_5 pos seq modes = jump_if pos seq modes (/= 0)
-perform_opcode_6 pos seq modes = jump_if pos seq modes (== 0)
+perform_opcode_5 com modes = jump_if com modes (/= 0)
+perform_opcode_6 com modes = jump_if com modes (== 0)
 
-perform_opcode_7 pos seq modes = perform_opcode_1or2 pos seq modes (<)
-perform_opcode_8 pos seq modes = perform_opcode_1or2 pos seq modes (==)
+perform_opcode_7 com modes = perform_opcode_1or2 com modes (<)
+perform_opcode_8 com modes = perform_opcode_1or2 com modes (==)
 
-{-perform_opcode_9 pos seq modes =-}
+perform_opcode_9 com modes =
+  com { _relative_base = _relative_base com + v,
+        _current_position = pos + 2 }
+  where 
+    pos = _current_position com
+    v:[] = get_values_by_mode com modes 1
 
 execute_current_opcode computer = do
   com <- computer
   let seq = _sequence com
   let pos = _current_position com
   let (instr, modes) = parse_opcode $ seq!!pos
-
-  let non_io_action = (\opcode_action -> do
-                         let (_seq,_pos) = opcode_action pos seq modes
-                         return com { _sequence=_seq, _current_position=_pos } )
-
   case instr of
-    1         -> non_io_action perform_opcode_1
-    2         -> non_io_action perform_opcode_2
+    1         -> return $ perform_opcode_1 com modes
+    2         -> return $ perform_opcode_2 com modes
     3         -> perform_opcode_3 com modes
     4         -> perform_opcode_4 com modes
-    5         -> non_io_action perform_opcode_5
-    6         -> non_io_action perform_opcode_6
-    7         -> non_io_action perform_opcode_7
-    8         -> non_io_action perform_opcode_8
-    otherwise -> error ("No valid instruction " ++ (show instr))
+    5         -> return $ perform_opcode_5 com modes
+    6         -> return $ perform_opcode_6 com modes
+    7         -> return $ perform_opcode_7 com modes
+    8         -> return $ perform_opcode_8 com modes
+    9         -> return $ perform_opcode_9 com modes
+    otherwise -> error ("No valid instruction " ++ (show instr) ++ " " ++ (show pos) ++ " " ++ (show $ seq))
 
 iterate_program :: IO Computer -> IO Computer
 iterate_program computer = do
@@ -101,3 +128,9 @@ iterate_program computer = do
 
 run_program :: Computer -> IO Computer
 run_program com = iterate_program $ return com
+
+main = do
+  let memory_size = 10000
+  let _seq = [109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99] ++ (take memory_size $ repeat 0)
+  let com = _default_computer { _sequence = _seq , _inputs = []}
+  run_program com >>= print
