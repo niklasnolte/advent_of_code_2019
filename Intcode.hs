@@ -1,10 +1,10 @@
 module Intcode where
-
 import System.IO.Unsafe (unsafePerformIO)
 
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 
+data State = Running | WaitingForInput | Done deriving (Enum, Show, Eq)
 
 data Computer =
   Computer {
@@ -12,7 +12,7 @@ data Computer =
     _outputs          :: [Int],
     _current_position :: Int,
     _sequence         :: [Int],
-    _done             :: Bool,
+    _state            :: State,
     _relative_base    :: Int
   } deriving (Show)
 
@@ -20,7 +20,7 @@ _default_computer = Computer { _inputs = [],
                                _outputs = [],
                                _current_position = 0,
                                _sequence = [],
-                               _done = False,
+                               _state = Running,
                                _relative_base = 0 }
 
 data Mode = Position | Immediate | Relative deriving (Enum, Show, Eq)
@@ -34,8 +34,8 @@ parse_opcode opcode = (op, modes)
 
 modify_sequence pos seq value = take pos seq ++ [value] ++ drop (pos+1) seq
 
-get_values_by_mode com modes n =
-  [ get_val v mode | (v,mode) <- zip (take n $ drop start seq) (modes ++ repeat Position) ]
+get_values_by_mode com modes n = unsafePerformIO $ do
+  return [ get_val v mode | (v,mode) <- zip (take n $ drop start seq) (modes ++ repeat Position) ]
   where start = _current_position com + 1
         seq = _sequence com
         get_val v mode = case mode of
@@ -120,9 +120,9 @@ iterate_program computer = do
   let pos = _current_position c
   let (op,_) = parse_opcode $ s!!pos
   case op of
-    99 -> return c { _done = True }
+    99 -> return c { _state = Done }
     otherwise -> if (3 == op && _inputs c == [])
-                 then computer
+                 then return c { _state = WaitingForInput }
                  else do new_c <- execute_current_opcode computer
                          iterate_program $ return new_c
 

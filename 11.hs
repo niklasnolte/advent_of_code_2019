@@ -1,6 +1,7 @@
 import Intcode hiding (main)
 import qualified Data.List as L
 import Input11
+import System.IO.Unsafe (unsafePerformIO)
 
 data GridRepr = GridRepr [[Int]]
 
@@ -10,9 +11,10 @@ substitute_color i
   | i == 1 = "█"
 
 instance Show GridRepr where
-  show (GridRepr x) = "\n" ++ (L.intercalate "\n" $ map (\y -> L.intercalate "" $ map substitute_color y) x)
+  show (GridRepr x) = show x{-"\n" ++ (L.intercalate "\n" $ map (\y -> L.intercalate "" $ map substitute_color y) x)-}
 
 data Grid = Grid {
+  _touchedFields :: [Int],
   _repr :: GridRepr,
   _currentPosition :: (Int, Int),
   _currentOrientation :: (Int, Int)
@@ -24,28 +26,41 @@ _getIntRepr g = let (GridRepr x) = _repr g in x
 rotateDir :: Int -> (Int, Int) -> (Int, Int)
 rotateDir input (x,y) = let p = (-1)^input in (y*p, -x*p)
 
+testRotateDir :: IO ()
+testRotateDir = do
+  print $ rotateDir 0 (0,1)
+  print $ rotateDir 0 (1,0)
+  print $ rotateDir 0 (0,-1)
+  print $ rotateDir 0 (-1,0)
+  print $ rotateDir 1 (0,1)
+  print $ rotateDir 1 (1,0)
+  print $ rotateDir 1 (0,-1)
+  print $ rotateDir 1 (-1,0)
+
 updatePosition ::  Int -> Grid -> Grid
 updatePosition input grid =
-  grid { _currentPosition = (xOld+xOldDir, yOld+yOldDir),
+  grid { _currentPosition = (xOld+ (fst newDir), yOld+ (snd newDir)),
          _currentOrientation = newDir }
   where (xOld,yOld) = _currentPosition grid
-        (xOldDir, yOldDir) = _currentOrientation grid
-        newDir = rotateDir input (xOldDir, yOldDir)
+        oldDir = _currentOrientation grid
+        newDir = rotateDir input oldDir
 
 readCurrentGridColor :: Grid -> Int
 readCurrentGridColor grid =
-  _getIntRepr grid !! x !! y
+   _getIntRepr grid !! x !! y
   where (x,y) = _currentPosition grid
 
 paintGrid :: Int -> Grid -> Grid
 paintGrid color grid =
-  grid { _repr = GridRepr newRepr }
+  grid { _repr = GridRepr newRepr,
+         _touchedFields = newField:_touchedFields grid }
   where (x,y) = _currentPosition grid
         oldRepr = _getIntRepr grid
         (prevRows,target:nextRows) = L.splitAt x oldRepr
         (prev,_:next) = L.splitAt y target
         updatedTarget = prev ++ color:next
         newRepr = prevRows ++ updatedTarget:nextRows
+        newField = x * (length target) + y
 
 executeRobotCycle :: IO Grid -> IO Computer -> IO (Grid, Computer)
 executeRobotCycle ioGrid ioComputer = do
@@ -53,7 +68,7 @@ executeRobotCycle ioGrid ioComputer = do
   let input = readCurrentGridColor grid
   computer <- ioComputer
   com <- runProgramWithInput input computer
-  let (newColor:direction:_) = _outputs com
+  let (direction:newColor:_) = _outputs com
   let paintedGrid = paintGrid newColor grid
   let newGrid = updatePosition direction paintedGrid
   return (newGrid, com)
@@ -61,20 +76,20 @@ executeRobotCycle ioGrid ioComputer = do
 letRobotPaint :: Int -> IO Grid -> IO Computer -> IO (Grid, Computer)
 letRobotPaint i grid computer = do
   (g,c) <- executeRobotCycle grid computer
-  print $ (_sequence c) !! (_current_position c)
-  {-print g-}
-  {-print c-}
-  case _done c of
-    True -> return (g,c)
-    False -> if (i < -1) then return (g,c) else letRobotPaint (i+1) (return g) (return c)
+  case _state c of
+    Done -> return (g,c)
+    otherwise -> if (i < -1) then return (g,c) else letRobotPaint (i+1) (return g) (return c)
 
-initializedGrid = Grid { _repr = GridRepr $ take 50 $ repeat $ take 50 $ repeat 0,
-                         _currentPosition = (25, 25),
-                         _currentOrientation = (0,-1) }{-facing up-} 
+gridWidth = 1000
+
+initializedGrid = Grid { _repr = GridRepr $ take gridWidth $ repeat $ take gridWidth $ repeat 0,
+                         _currentPosition = (gridWidth`div`2, gridWidth`div`2),
+                         _currentOrientation = (0,-1), {-facing up-}
+                         _touchedFields = [] }
 
 main = do
-  {-print initializedGrid-}
-  let initializedComputer = _default_computer { _sequence = paintingProgram }
+  {-testRotateDir-}
+  let initializedComputer = _default_computer { _sequence = paintingProgram ++ (take 1000 $ repeat 0) }
   (grid, com) <- letRobotPaint 0 (return initializedGrid) (return initializedComputer)
-  print grid
-  {-print com-}
+  let answer_1 = length $ L.nub $ _touchedFields grid
+  print answer_1

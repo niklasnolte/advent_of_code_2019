@@ -26,7 +26,7 @@ run_amplifier_chain states i = do
   let inputs = take 1 $ _outputs $ last rest
   new_state <- run_amplifier (return first) (if inputs == [] then [0] else inputs)
   let new_states = return (rest ++ [new_state])
-  if (_done new_state && i `mod` 5 == 4) {- only stop at the last -}
+  if (_state new_state == Done && i `mod` 5 == 4) {- only stop at the last -}
     then new_states
     else run_amplifier_chain new_states (i+1)
 
