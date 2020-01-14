@@ -129,6 +129,11 @@ iterate_program computer = do
 run_program :: Computer -> IO Computer
 run_program com = iterate_program $ return com
 
+runProgramWithInput :: Int -> Computer -> IO Computer
+runProgramWithInput input computer = do
+  let c = computer { _inputs = input:(_inputs computer) }
+  run_program c
+
 main = do
   let memory_size = 10000
   let _seq = [109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99] ++ (take memory_size $ repeat 0)
