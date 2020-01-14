@@ -11,7 +11,8 @@ substitute_color i
   | i == 1 = "█"
 
 instance Show GridRepr where
-  show (GridRepr x) = show x{-"\n" ++ (L.intercalate "\n" $ map (\y -> L.intercalate "" $ map substitute_color y) x)-}
+  show (GridRepr xx) = let x = L.transpose xx in
+                       "\n" ++ (L.intercalate "\n" $ map (\y -> L.intercalate "" $ map substitute_color y) x)
 
 data Grid = Grid {
   _touchedFields :: [Int],
@@ -73,23 +74,26 @@ executeRobotCycle ioGrid ioComputer = do
   let newGrid = updatePosition direction paintedGrid
   return (newGrid, com)
 
-letRobotPaint :: Int -> IO Grid -> IO Computer -> IO (Grid, Computer)
-letRobotPaint i grid computer = do
+letRobotPaint :: IO Grid -> IO Computer -> IO (Grid, Computer)
+letRobotPaint grid computer = do
   (g,c) <- executeRobotCycle grid computer
   case _state c of
     Done -> return (g,c)
-    otherwise -> if (i < -1) then return (g,c) else letRobotPaint (i+1) (return g) (return c)
+    otherwise -> letRobotPaint (return g) (return c)
 
-gridWidth = 1000
 
-initializedGrid = Grid { _repr = GridRepr $ take gridWidth $ repeat $ take gridWidth $ repeat 0,
-                         _currentPosition = (gridWidth`div`2, gridWidth`div`2),
-                         _currentOrientation = (0,-1), {-facing up-}
-                         _touchedFields = [] }
+initializeGrid :: Int -> Grid
+initializeGrid gridWidth = Grid { _repr = GridRepr $ take gridWidth $ repeat $ take gridWidth $ repeat 0,
+                                  _currentPosition = (gridWidth`div`2, gridWidth`div`2),
+                                  _currentOrientation = (0,-1), {-facing up-}
+                                  _touchedFields = [] }
 
 main = do
   {-testRotateDir-}
   let initializedComputer = _default_computer { _sequence = paintingProgram ++ (take 1000 $ repeat 0) }
-  (grid, com) <- letRobotPaint 0 (return initializedGrid) (return initializedComputer)
+  (grid, com) <- letRobotPaint (return $ initializeGrid 1000) (return initializedComputer)
   let answer_1 = length $ L.nub $ _touchedFields grid
   print answer_1
+  let correctlyInitializedGrid = paintGrid 1 $ initializeGrid 100
+  (grid, _) <- letRobotPaint (return correctlyInitializedGrid) (return initializedComputer)
+  print $ _repr grid
