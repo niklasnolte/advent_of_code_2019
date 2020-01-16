@@ -3,6 +3,7 @@ module Lib where
 import qualified Data.Vector as V
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Maybe
 import Debug.Trace (trace)
 import Control.Applicative ((<*>))
@@ -78,8 +79,40 @@ stepNTimes :: Int -> [Moon] -> [Moon]
 stepNTimes 0 moons = moons
 stepNTimes i moons = stepNTimes (i-1) $ stepOnce moons
 
+data Dimension = X|Y|Z deriving (Show,Enum,Eq)
+type VisitedStates = S.Set [(Double,Double)]
+
+getStates :: Dimension -> Moon -> (Double,Double)
+getStates dim moon = case dim of
+  X ->  (V.v3x $ _getPos moon, V.v3x $ _getVelo moon)
+  Y ->  (V.v3y $ _getPos moon, V.v3y $ _getVelo moon)
+  Z ->  (V.v3z $ _getPos moon, V.v3z $ _getVelo moon)
+
+recordStates :: Dimension -> [Moon] -> VisitedStates -> VisitedStates
+recordStates dim moons states =
+  let newEntry = L.map (getStates dim) moons in
+  S.insert newEntry states
+
+
+stepOnceAndRecordState :: Dimension -> [Moon] -> VisitedStates -> ([Moon], VisitedStates)
+stepOnceAndRecordState dim moons states =
+  let newMoons = stepOnce moons in
+  let newStates = recordStates dim newMoons states in
+  (newMoons, newStates)
+
+stepWhileUniqueStates :: Int -> Dimension -> [Moon] -> VisitedStates -> Int
+stepWhileUniqueStates i dim moons states
+  | length states == i = let (newMoons, newStates) = stepOnceAndRecordState dim moons states in
+                         stepWhileUniqueStates (i+1) dim newMoons newStates
+  | otherwise = length states
+
+
 runProg :: IO ()
 runProg = do
   let moons = stepNTimes 1000 initializeMoons
-  print $ sum $ map calculateTotalEnergy moons
+  let answer_1 = sum $ L.map calculateTotalEnergy moons
+  print answer_1
+  let px:py:pz:[] = map (\d -> stepWhileUniqueStates 0 d initializeMoons S.empty) [X,Y,Z] 
+  let answer_2 = lcm (lcm px py) pz
+  print answer_2
 
