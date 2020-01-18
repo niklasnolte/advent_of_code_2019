@@ -2,7 +2,6 @@ import qualified Input6
 import Data.List.Split (splitOn)
 import Data.Maybe (fromJust)
 import qualified Data.Map as Map
-import Control.Applicative as Ap
 import Data.List (findIndex, zipWith)
 
 type SpaceObject = String

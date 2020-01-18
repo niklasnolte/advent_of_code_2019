@@ -1,5 +1,3 @@
-module Lib where
-
 import qualified Data.Vector as V
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -107,8 +105,8 @@ stepWhileUniqueStates i dim moons states
   | otherwise = length states
 
 
-runProg :: IO ()
-runProg = do
+main :: IO ()
+main = do
   let moons = stepNTimes 1000 initializeMoons
   let answer_1 = sum $ L.map calculateTotalEnergy moons
   print answer_1
