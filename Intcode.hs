@@ -1,5 +1,7 @@
 module Intcode where
-import System.IO.Unsafe (unsafePerformIO)
+import qualified Data.Map as M
+import qualified Data.Maybe as Maybe
+import Debug.Trace (trace)
 
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
@@ -11,7 +13,7 @@ data Computer =
     _inputs           :: [Int],
     _outputs          :: [Int],
     _current_position :: Int,
-    _sequence         :: [Int],
+    _sequence         :: M.Map Int Int,
     _state            :: State,
     _relative_base    :: Int
   } deriving (Show)
@@ -19,11 +21,13 @@ data Computer =
 _default_computer = Computer { _inputs = [],
                                _outputs = [],
                                _current_position = 0,
-                               _sequence = [],
+                               _sequence = M.empty,
                                _state = Running,
                                _relative_base = 0 }
 
 data Mode = Position | Immediate | Relative deriving (Enum, Show, Eq)
+
+getVal x seq = Maybe.fromJust $ M.lookup x seq
 
 parse_opcode opcode = (op, modes)
                       where {
@@ -32,23 +36,22 @@ parse_opcode opcode = (op, modes)
                         modes = map (\x -> toEnum x :: Mode) modes_as_int;
                       }
 
-modify_sequence pos seq value = take pos seq ++ [value] ++ drop (pos+1) seq
 
 get_values_by_mode com modes n =
-  [ get_val v mode | (v,mode) <- zip (take n $ drop start seq) (modes ++ repeat Position) ]
+  [ get_val v mode | (v,mode) <- zip (map (\i -> getVal i seq) [start..(n+start-1)]) (modes ++ repeat Position) ]
   where start = _current_position com + 1
         seq = _sequence com
         get_val v mode = case mode of
-          Position -> seq!!v
+          Position -> getVal v seq
           Immediate -> v
-          Relative -> seq!!(v + _relative_base com)
+          Relative -> getVal (v + _relative_base com) seq
 
 get_position_by_mode seq pos rel mode = case mode of
-  Position -> seq!!pos
-  Relative -> seq!!pos + rel
+  Position -> getVal pos seq
+  Relative -> (getVal pos seq) + rel
   otherwise -> error "immediate mode for writing parameter doesn't work"
 
-perform_opcode_1or2 com modes op = com { _sequence = modify_sequence write_at seq $ fromEnum (v1 `op` v2),
+perform_opcode_1or2 com modes op = com { _sequence = M.insert write_at (fromEnum (v1 `op` v2)) seq ,
                                          _current_position = pos+4 }
                                    where
                                      seq = _sequence com
@@ -61,7 +64,7 @@ perform_opcode_1 com modes = perform_opcode_1or2 com modes (+)
 perform_opcode_2 com modes = perform_opcode_1or2 com modes (*)
 
 perform_opcode_3 com modes =
-  com { _sequence = modify_sequence write_at seq first_input,
+  com { _sequence = M.insert write_at first_input seq ,
         _current_position = instr_pos+1,
         _inputs = other_inputs }
   where seq = _sequence com
@@ -99,7 +102,7 @@ perform_opcode_9 com modes =
 execute_current_opcode com =
   let seq = _sequence com in
   let pos = _current_position com in 
-  let (instr, modes) = parse_opcode $ seq!!pos in
+  let (instr, modes) = parse_opcode $ getVal pos seq in
   case instr of
     1         -> perform_opcode_1 com modes
     2         -> perform_opcode_2 com modes
@@ -116,7 +119,7 @@ iterate_program :: Computer -> Computer
 iterate_program c =
   let s = _sequence c in
   let pos = _current_position c in
-  let (op,_) = parse_opcode $ s!!pos in
+  let (op,_) = parse_opcode $ getVal pos s in
   case op of
     99 -> c { _state = Done }
     otherwise -> if (3 == op && _inputs c == [])
@@ -132,8 +135,11 @@ runProgramWithInput input computer =
   let c = computer { _inputs = input:(_inputs computer) } in
   run_program c
 
+makeSequenceFrom :: [Int] -> M.Map Int Int
+makeSequenceFrom = M.fromList . zip [0..]
+
 main = do
   let memory_size = 10000
-  let _seq = [109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99] ++ (take memory_size $ repeat 0)
+  let _seq = M.fromList $ zip [0..] ([109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99] ++ (replicate memory_size 0))
   let com = _default_computer { _sequence = _seq , _inputs = []}
   print $ run_program com

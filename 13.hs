@@ -92,11 +92,11 @@ runGame i com screen =
 
 
 main = do
-  let com = _default_computer { _sequence = input ++ replicate 100 0 }
+  let com = _default_computer { _sequence = makeSequenceFrom (input ++ replicate 100 0) }
   let resultCom = run_program com
   let screen = updateScreen (_outputs resultCom) defaultScreen
   print $ countBlockTiles screen
   {- part 2-}
   let newInput = 2 : drop 1 input
-  let com = _default_computer { _sequence = newInput ++ replicate 100 0 }
+  let com = _default_computer { _sequence = makeSequenceFrom (newInput ++ replicate 100 0) }
   print $ runGame 0 com defaultScreen

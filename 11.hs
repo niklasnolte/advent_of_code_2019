@@ -96,7 +96,7 @@ initializeGrid gridWidth = Grid
 main = do
   {-testRotateDir-}
   let initializedComputer =
-        _default_computer { _sequence = paintingProgram ++ replicate 1000 0 }
+        _default_computer { _sequence = makeSequenceFrom (paintingProgram ++ replicate 1000 0) }
   (grid, com) <- letRobotPaint (return $ initializeGrid 1000)
                                (return initializedComputer)
   let answer_1 = length $ L.nub $ _touchedFields grid
