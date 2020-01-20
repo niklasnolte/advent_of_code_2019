@@ -114,7 +114,6 @@ executable 13
   other-extensions:    ScopedTypeVariables, TemplateHaskell
   build-depends:       base,
                        containers,
-                       split
   other-modules:       Input13,
                        Intcode
   default-language:    Haskell2010

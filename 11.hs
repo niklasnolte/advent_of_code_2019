@@ -71,7 +71,7 @@ executeRobotCycle ioGrid ioComputer = do
   grid <- ioGrid
   let input = readCurrentGridColor grid
   computer <- ioComputer
-  com      <- runProgramWithInput input computer
+  let com      = runProgramWithInput input computer
   let (direction : newColor : _) = _outputs com
   let paintedGrid                = paintGrid newColor grid
   let newGrid                    = updatePosition direction paintedGrid

@@ -13,7 +13,7 @@ my_default_computer = _default_computer { _sequence = _default_seq }
 run_amplifier :: IO Computer -> [Int] -> IO Computer
 run_amplifier my_state inputs = do
   s <- my_state
-  run_program s { _inputs = inputs ++ (_inputs s) }
+  return $ run_program s { _inputs = inputs ++ (_inputs s) }
 
 initialize_amplifier :: Int -> IO Computer
 initialize_amplifier phase_setting = do
