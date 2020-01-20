@@ -18,7 +18,7 @@ instance Show TileType where
 
 data Point = Point Int Int deriving (Show, Eq, Ord)
 
-data Screen = Screen (M.Map Point TileType)
+newtype Screen = Screen (M.Map Point TileType)
 
 type Instructions = [(Point, TileType)]
 
@@ -35,22 +35,22 @@ instance Show Screen where
                     M.toList s
 
 buildScreen :: [Int] -> IO Screen
-buildScreen input = do 
-  let com = _default_computer { _sequence = input ++ (take 1000 $ repeat 0) }
+buildScreen input = do
+  let com = _default_computer { _sequence = input ++ replicate 1000 0 }
   resultCom <- run_program com
   let outputs = S.chunksOf 3 $ _outputs resultCom
   print outputs
-  let instr = [ ((Point x y), (toEnum t::TileType))  | [t,y,x] <- outputs]
+  let instr = [ (Point x y, toEnum t::TileType)  | [t,y,x] <- outputs]
   return $ Screen $ M.fromList instr
 
 countBlockTiles :: Screen -> Int
 countBlockTiles (Screen s) =
   sum $ map (fromEnum . (==Block) . snd) $ M.toList s
- 
+
 main = do
   screen <- buildScreen input
   print screen
   print $ countBlockTiles screen
   {-print $ Screen $ M.fromList [((Point 0 0), Empty), ((Point 0 1), Wall), ((Point 1 0), Block)]-}
   {-print $ intercalateEveryN 2 "," "abcdefgh"-}
-  
+

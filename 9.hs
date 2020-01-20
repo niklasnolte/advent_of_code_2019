@@ -5,7 +5,7 @@ _input = [1102,34463338,34463338,63,1007,63,34463338,63,1005,63,53,1101,0,3,1000
 
 main = do
   let memory_size = 10000
-  let com = _default_computer { _sequence = _input ++ (take memory_size $ repeat 0), _inputs = [1] }
+  let com = _default_computer { _sequence = _input ++ replicate memory_size 0, _inputs = [1] }
   run_program com >>= print . head . _outputs {-answer 1-}
-  let com = _default_computer { _sequence = _input ++ (take memory_size $ repeat 0), _inputs = [2] }
+  let com = _default_computer { _sequence = _input ++ replicate memory_size 0, _inputs = [2] }
   run_program com >>= print . head . _outputs

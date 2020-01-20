@@ -40,7 +40,7 @@ get_answer phase_values = do
   let all_permutations = permutations phase_values
   all_signals <- sequence $ map get_thruster_signal all_permutations
   return $ maximum all_signals
-  
+
 
 main = do
   a1 <- get_answer [0..4]

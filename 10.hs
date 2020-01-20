@@ -39,13 +39,13 @@ getAllAsteroids map =
 
 getNumberOfBlockingAsteroids :: Point -> Point -> [Point] -> Int
 getNumberOfBlockingAsteroids reference asteroid allAsteroids =
-  (L.sum $ L.map fromEnum isBlockedBy)
+  L.sum $ L.map fromEnum isBlockedBy
   where isBlockedBy = L.map (\x -> isBetween x (reference,asteroid) && x /= reference && x /= asteroid) allAsteroids
 
 countVisibleAsteroids :: Point -> [Point] -> Int
 countVisibleAsteroids point allAsteroids =
-  (length $ L.filter isVisible allAsteroids) - 1 {- exclude itself -}
-  where  isVisible = (\x -> getNumberOfBlockingAsteroids point x allAsteroids == 0)
+  length (L.filter isVisible allAsteroids) - 1 {- exclude itself -}
+  where  isVisible x = getNumberOfBlockingAsteroids point x allAsteroids == 0
 
 {-part 2-}
 getAngleOfConnection :: Point -> Point -> Angle
@@ -85,10 +85,10 @@ sortAsteroidsInOrderOfDestruction laserAsteroid otherAsteroids =
 
 main = do
   let allAsteroids = getAllAsteroids real_input
-  let nVisibleAsteroids = map (\x -> countVisibleAsteroids x allAsteroids) allAsteroids
+  let nVisibleAsteroids = map (`countVisibleAsteroids` allAsteroids) allAsteroids
   let answer1 = maximum nVisibleAsteroids
   print answer1
-  let laserPositionIndex = fromJust $ L.findIndex (==answer1) nVisibleAsteroids
+  let laserPositionIndex = fromJust $ L.elemIndex answer1 nVisibleAsteroids
   let laserAsteroid = allAsteroids !! laserPositionIndex
   let allOtherAsteroids = take laserPositionIndex allAsteroids ++ drop (laserPositionIndex + 1) allAsteroids
   let answer2 = sortAsteroidsInOrderOfDestruction laserAsteroid allOtherAsteroids !! 199
