@@ -27,7 +27,7 @@ _default_computer = Computer { _inputs = [],
 
 data Mode = Position | Immediate | Relative deriving (Enum, Show, Eq)
 
-getVal x seq = Maybe.fromJust $ M.lookup x seq
+getVal x seq = Maybe.fromMaybe 0 $ M.lookup x seq
 
 parse_opcode opcode = (op, modes)
                       where {
