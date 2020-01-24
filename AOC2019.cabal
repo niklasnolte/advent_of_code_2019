@@ -129,5 +129,6 @@ executable 15
   main-is:             15.hs
   other-extensions:    ScopedTypeVariables, TemplateHaskell
   build-depends:       base,
-                       containers
+                       containers,
+                       random-fu
   default-language:    Haskell2010

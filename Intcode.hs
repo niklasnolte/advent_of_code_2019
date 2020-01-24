@@ -16,7 +16,7 @@ data Computer =
     _sequence         :: M.Map Int Int,
     _state            :: State,
     _relative_base    :: Int
-  } deriving (Show)
+  } deriving (Show, Eq)
 
 _default_computer = Computer { _inputs = [],
                                _outputs = [],
