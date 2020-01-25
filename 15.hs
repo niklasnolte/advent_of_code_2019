@@ -3,8 +3,6 @@ import qualified Data.Map as M
 import qualified Data.List as L
 import Control.Monad (sequence)
 import Data.Maybe (fromMaybe, Maybe(Just))
-import Data.Random (sample, randomElement, MonadRandom)
-import Control.Concurrent (threadDelay)
 import Debug.Trace (trace)
 
 data Direction = North | South | West | East deriving (Eq, Show, Enum, Bounded, Ord)
