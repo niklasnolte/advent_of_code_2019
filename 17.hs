@@ -1,3 +1,4 @@
+{-# LANGUAGE QuasiQuotes                      #-}
 import qualified Input17
 import Intcode hiding (main)
 import qualified Data.Map as M
@@ -6,6 +7,8 @@ import Data.Maybe (fromMaybe, fromJust)
 import Debug.Trace (trace)
 import Data.List.Split (splitOn)
 import Data.Char (ord)
+import Text.RE.Replace (replaceAll)
+import Text.RE.TDFA.String (re,(*=~))
 
 data Direction = North | South | West | East deriving (Eq, Show, Enum, Bounded, Ord)
 
@@ -60,7 +63,7 @@ minMax xs = case xs of
 
 getRange_ :: (Point -> Int) -> Screen -> (Int, Int)
 getRange_ getAxis (Screen m) =
-  let xs = map getAxis $ M.keys m in
+  let xs = L.map getAxis $ M.keys m in
   minMax xs
 
 getWidth :: Screen -> (Int, Int)
@@ -75,7 +78,7 @@ instance Show Screen where
     let (yLow, yHigh) = getHeight s in
     let printRow y = [show $ getElement (Point x y) s
                        | x <- [xLow..xHigh]] in
-    let repr = map (L.intercalate "" . printRow) [yLow..yHigh] in
+    let repr = L.map (L.intercalate "" . printRow) [yLow..yHigh] in
     L.intercalate "\n" repr
 
 toScreen :: [Int] -> Screen
@@ -98,7 +101,6 @@ isIntersection s p =
   scaffoldElement == getElement p s &&
   (length $ filter ((==scaffoldElement) . snd) ns) == 4
 
-
 getIntersectionPoints :: Screen -> [Point]
 getIntersectionPoints s =
   filter (isIntersection s) $ M.keys $ _getM s
@@ -112,7 +114,7 @@ part1 c = do
   let nC = run_program c
   let myS = toScreen $ reverse $ _outputs nC
   print myS
-  (return . sum . map getIntersectionParam . getIntersectionPoints) myS
+  (return . sum . L.map getIntersectionParam . getIntersectionPoints) myS
 
 isDroid :: Object -> Bool
 isDroid o = L.elem (reprObj o) "^><v"
@@ -143,7 +145,7 @@ getSegmentLength p d s =
 findSegmentToGoNext :: Point -> Direction -> Screen -> Maybe PathSegment
 findSegmentToGoNext currPos currDir s =
   let ns = getNeighbors currPos s in
-  let movableDirs = map fst $ filter ((==scaffoldElement) . snd) ns in
+  let movableDirs = L.map fst $ filter ((==scaffoldElement) . snd) ns in
   let movableDirsNotBack = filter (/=(turnAround currDir)) movableDirs in
   case length movableDirsNotBack of
   0 -> Nothing
@@ -188,23 +190,24 @@ getNumSubListOccurrences p l = length $ filter (L.isPrefixOf p) $ L.tails l
 placeHolder = "#"
 
 getCompressionScore :: ([String], Int) -> Int
-getCompressionScore (seq, nOccs) = 
+getCompressionScore (seq, nOccs) =
   let maxMem = 20 in
   case L.elem placeHolder seq of
     False ->
-      let totalLength = (sum $ map ({-count commata-} (+2). length) seq) -1 in
+      let totalLength = (sum $ L.map ({-count commata-} (+2). length) seq) -1 in
       let neededReprMem = 2*(length seq)-1 in {-count commata too-}
       case totalLength <= maxMem of
         True -> totalLength * nOccs - neededReprMem
         False -> 0
     True -> 0
 
-getBestFactorization :: [String] -> [String]
-getBestFactorization path =
+getSortedFactorizations :: [String] -> [[String]]
+getSortedFactorizations path =
   let subLists = getSubLists path in
-  let subListsOccs = zip subLists $ map (`getNumSubListOccurrences` path) subLists in
-  let subListsScores = zip subLists $ map getCompressionScore subListsOccs in
-  fst $ head $ L.reverse $ L.sortOn snd subListsScores
+  let subListsOccs = zip subLists $ L.map (`getNumSubListOccurrences` path) subLists in
+  let subListsScores = zip subLists $ L.map getCompressionScore subListsOccs in
+  let subListsScoresNoZeros = filter ((> 0) . snd) subListsScores in
+  L.map fst $ L.reverse $ L.sortOn snd subListsScoresNoZeros
 
 substitutePlaceholder :: String -> [String] -> [String] -> [String]
 substitutePlaceholder ph pattern path =
@@ -217,40 +220,47 @@ substitutePlaceholder ph pattern path =
        substitutePlaceholder ph pattern $
        (take idx path) ++
        (ph:drop (idx+removeN) path)
- 
-getNBestFactorizations :: Int -> [String] -> [[String]]
-getNBestFactorizations n path =
-  let bf = getBestFactorization path in
-  let newPath = substitutePlaceholder placeHolder bf path in
+
+getAllNFactorizations :: Int -> [String] -> [[[String]]]
+getAllNFactorizations n path =
+  let fs = getSortedFactorizations path :: [[String]] in
+  let newPaths = [substitutePlaceholder placeHolder f path | f <- fs] :: [[String]] in
   case n of
-  1 -> [bf]
-  _ -> bf:(getNBestFactorizations (n-1) newPath)
+  1 -> L.transpose [fs]
+  _ -> let factorizationsWithPaths = zip fs newPaths in
+       let nextFactorizationsFor (f,pWithF) = [f:nextFs |
+             nextFs <- getAllNFactorizations (n-1) pWithF] in
+       L.concat $ L.map nextFactorizationsFor factorizationsWithPaths
 
-decomposeIntoFunctions :: [String] -> [String]
-decomposeIntoFunctions path = 
-  let best3 = getNBestFactorizations 3 path in
+decomposeIntoFunctions :: [String] -> [[String]] -> [String]
+decomposeIntoFunctions path factorizations =
   let subst = \p (ph,ptrn) -> substitutePlaceholder [ph] ptrn p in
-  let best3WithNames = zip ['A'..] best3 in
-  let substitutedPath = L.foldl' subst path best3WithNames in
-  map (L.intercalate ",") (substitutedPath:best3)
+  let factWithNames = zip ['A'..] factorizations in
+  let substitutedPath = L.foldl' subst path factWithNames in
+  map (L.intercalate ",") (substitutedPath:factorizations)
 
-part2 :: Computer -> IO String
+formatFun :: String -> String
+formatFun fun =
+  replaceAll "$1," $ fun *=~ [re|$(["LR"])|]
+
+part2 :: Computer -> Int
 part2 c = do
   let nC = run_program c
   let s = toScreen $ reverse $ _outputs nC
   let path = getPathToTraverseScaffold s
   let pRepr = L.intercalate "," path
-  let [m,a,b,c] = decomposeIntoFunctions path
-  print m
-  print a
-  print b
-  print c
-  return pRepr
-  {-let ns = run_program nC { _inputs = M ++ A ++ B ++ C }-}
-  {-return $ head $ _outputs ns-}
+  let allFact = getAllNFactorizations 3 path
+  let possibleCompositions = L.map (decomposeIntoFunctions path) allFact
+  let isValidComp = \[m,a,b,c] -> not $ ('L' `L.elem` m) || ('R' `L.elem` m)
+  let validCompositions = L.filter isValidComp possibleCompositions
+  let oneComp = validCompositions!!0
+  let m = (map ord $ head oneComp) ++ [10]
+  let [a,b,c] = [ (map ord (formatFun f)) ++ [10] | f <- tail oneComp]
+  let nnC = run_program nC { _inputs = m ++ a ++ b ++ c ++ [ord 'n', 10]}
+  head $ _outputs nnC
 
 main = do
   let myCom = _default_computer { _sequence = M.fromList $ zip [0..] Input17.input }
   part1 myCom >>= print
   let myComP2 = myCom { _sequence = M.insert 0 2 (_sequence myCom) }
-  part2 myComP2 >>= print
+  print $ part2 myComP2

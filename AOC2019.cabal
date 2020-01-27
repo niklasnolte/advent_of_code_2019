@@ -142,10 +142,11 @@ executable 16
 
 executable 17
   main-is:             17.hs
-  other-extensions:    ScopedTypeVariables, TemplateHaskell
+  other-extensions:    ScopedTypeVariables, TemplateHaskell, QuasiQuotes
   other-modules:       Intcode,
                        Input17
   build-depends:       base,
                        containers,
-                       split
+                       split,
+                       regex
   default-language:    Haskell2010
