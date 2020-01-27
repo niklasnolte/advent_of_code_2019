@@ -128,6 +128,7 @@ executable 14
 executable 15
   main-is:             15.hs
   other-extensions:    ScopedTypeVariables, TemplateHaskell
+  other-modules:       Intcode
   build-depends:       base,
                        containers
   default-language:    Haskell2010
@@ -137,4 +138,14 @@ executable 16
   other-extensions:    ScopedTypeVariables, TemplateHaskell
   build-depends:       base,
                        containers
+  default-language:    Haskell2010
+
+executable 17
+  main-is:             17.hs
+  other-extensions:    ScopedTypeVariables, TemplateHaskell
+  other-modules:       Intcode,
+                       Input17
+  build-depends:       base,
+                       containers,
+                       split
   default-language:    Haskell2010
