@@ -158,3 +158,18 @@ executable 18
   build-depends:       base,
                        containers
   default-language:    Haskell2010
+ 
+executable test
+  main-is:             test.hs
+  other-extensions:    ScopedTypeVariables, TemplateHaskell
+  build-depends:       base,
+                       containers
+  default-language:    Haskell2010
+ 
+executable monadicIntCode
+  main-is:             monadicIntCode.hs
+  other-extensions:    ScopedTypeVariables, TemplateHaskell
+  build-depends:       base,
+                       containers
+  default-language:    Haskell2010
+ 

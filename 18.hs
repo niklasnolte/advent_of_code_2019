@@ -125,10 +125,12 @@ getAccessiblePointsFrom p s@(Screen m) =
   let walkables = expandPoints [p] s in
   let allDoors = [p | (p,o) <- M.toList m, isDoor o] in
   let accessibleDoors = L.filter (`hasNeighborIn` walkables) allDoors in
-  walkables ++ accessibleDoors
+  case getElement p s of
+  Wall -> []
+  _ -> walkables ++ accessibleDoors
   
 
 main = do
-  let s = toScreen Input18.input
+  let s = toScreen Input18.testInput2
   print s
-  print $ getAccessiblePointsFrom (Point 5 1) s
+  print $ getAccessiblePointsFrom (Point 14 2) s
